@@ -62,17 +62,18 @@ async function cmsGet<T = AnyContent>(
   url.searchParams.set('expand', expand)
   for (const [k, v] of Object.entries(queryParams)) url.searchParams.set(k, v)
 
+  // Always include auth token — Optimizely SaaS CMS requires it even for published content
+  let authHeader: string | undefined
+  try {
+    authHeader = `Bearer ${await getAccessToken()}`
+  } catch (err) {
+    console.error('[CMS] token error:', err)
+  }
+
   const headers: HeadersInit = {
     Accept:            'application/json',
     'Accept-Language': language,
-  }
-
-  if (isDraft) {
-    try {
-      headers['Authorization'] = `Bearer ${await getAccessToken()}`
-    } catch (err) {
-      console.error('[CMS] token error:', err)
-    }
+    ...(authHeader ? { Authorization: authHeader } : {}),
   }
 
   try {
@@ -109,11 +110,21 @@ export async function getPageByUrl(
   fullUrl: string,
   isDraft = false,
 ): Promise<AnyContent | null> {
-  const result = await cmsGet<AnyContent | AnyContent[]>(
+  // Try exact URL first
+  let result = await cmsGet<AnyContent | AnyContent[]>(
     '/content',
     { contentUrl: fullUrl },
     { isDraft },
   )
+  if (!result) {
+    // Try with /en/ language prefix (Optimizely SaaS CMS default)
+    const withLang = fullUrl.replace(/\/$/, '') + '/en/'
+    result = await cmsGet<AnyContent | AnyContent[]>(
+      '/content',
+      { contentUrl: withLang },
+      { isDraft },
+    )
+  }
   if (!result) return null
   return Array.isArray(result) ? (result[0] ?? null) : result
 }
