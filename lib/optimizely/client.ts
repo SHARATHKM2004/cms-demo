@@ -110,23 +110,40 @@ export async function getPageByUrl(
   fullUrl: string,
   isDraft = false,
 ): Promise<AnyContent | null> {
-  // Try exact URL first
-  let result = await cmsGet<AnyContent | AnyContent[]>(
-    '/content',
-    { contentUrl: fullUrl },
-    { isDraft },
-  )
-  if (!result) {
-    // Try with /en/ language prefix (Optimizely SaaS CMS default)
-    const withLang = fullUrl.replace(/\/$/, '') + '/en/'
-    result = await cmsGet<AnyContent | AnyContent[]>(
+  const base = fullUrl.replace(/\/$/, '')
+
+  // Build a list of URL variants to try (Optimizely stores with lang prefix by default)
+  const candidates = [
+    `${base}/`,
+    `${base}/en/`,
+    `${base}/en`,
+    base,
+  ]
+
+  for (const url of candidates) {
+    const result = await cmsGet<AnyContent | AnyContent[]>(
       '/content',
-      { contentUrl: withLang },
+      { contentUrl: url },
       { isDraft },
     )
+    if (result) {
+      return Array.isArray(result) ? (result[0] ?? null) : result
+    }
   }
-  if (!result) return null
-  return Array.isArray(result) ? (result[0] ?? null) : result
+
+  // Last resort: search for start page in root children
+  return getStartPage(isDraft)
+}
+
+/** Fetch the start page from CMS root children */
+async function getStartPage(isDraft = false): Promise<AnyContent | null> {
+  const children = await cmsGet<AnyContent[]>('/content/root/children', {}, { isDraft })
+  if (!children?.length) return null
+  // Return first published page-type item
+  return children.find(c =>
+    Array.isArray(c.contentType) &&
+    c.contentType.some(t => t.toLowerCase().includes('page'))
+  ) ?? children[0] ?? null
 }
 
 /** Fetch a single content item by its numeric ID (or "id_workId" draft ref). */

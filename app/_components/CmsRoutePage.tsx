@@ -17,7 +17,9 @@ const SITE_BASE = (process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000').
 
 export function buildSiteUrl(slug?: string[]): string {
   if (!slug || slug.length === 0) return `${SITE_BASE}/`
-  return `${SITE_BASE}/${slug.join('/')}`
+  // Strip 'en' language prefix if present in slug (CMS adds it, we don't want it in path)
+  const cleanSlug = slug.filter(s => s !== 'en')
+  return `${SITE_BASE}/${cleanSlug.join('/')}`
 }
 
 export async function generateCmsMetadata(slug?: string[]): Promise<Metadata> {
