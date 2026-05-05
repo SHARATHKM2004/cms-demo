@@ -146,7 +146,7 @@ async function getStartPage(isDraft = false): Promise<AnyContent | null> {
   ) ?? children[0] ?? null
 }
 
-/** Fetch a single content item by its numeric ID (or "id_workId" draft ref). */
+/** Fetch a single content item by its numeric ID. */
 export async function getContentById(
   id: string | number,
   isDraft = false,
