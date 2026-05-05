@@ -62,12 +62,12 @@ async function cmsGet<T = AnyContent>(
   url.searchParams.set('expand', expand)
   for (const [k, v] of Object.entries(queryParams)) url.searchParams.set(k, v)
 
-  // Always include auth token — Optimizely SaaS CMS requires it even for published content
+  // Try to get auth token but don't crash if it fails — fall back to unauthenticated
   let authHeader: string | undefined
   try {
     authHeader = `Bearer ${await getAccessToken()}`
   } catch (err) {
-    console.error('[CMS] token error:', err)
+    console.warn('[CMS] token fetch failed, trying without auth:', err)
   }
 
   const headers: HeadersInit = {
