@@ -57,7 +57,11 @@ function isExperiencePage(c: AnyContent): c is ExperiencePage {
   return (
     Array.isArray(c.contentType) &&
     (c.contentType.includes('ExperiencePage') ||
-      c.contentType.includes('VisualBuilderPage')) &&
+      c.contentType.includes('VisualBuilderPage') ||
+      c.contentType.includes('BlankExperience') ||
+      c.contentType.includes('Blank Experience') ||
+      c.contentType.includes('SeoExperience') ||
+      c.contentType.includes('SEO Experience')) &&
     'composition' in c
   )
 }
@@ -65,7 +69,13 @@ function isExperiencePage(c: AnyContent): c is ExperiencePage {
 function isStandardPage(c: AnyContent): c is StandardPage {
   return (
     'mainContentArea' in c ||
-    (Array.isArray(c.contentType) && c.contentType.some(t => t.endsWith('Page')))
+    (Array.isArray(c.contentType) &&
+      c.contentType.some(t =>
+        t.endsWith('Page') ||
+        t === 'CMS Page'  ||
+        t === 'Start Page' ||
+        t === 'StandardPage'
+      ))
   )
 }
 

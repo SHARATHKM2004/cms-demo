@@ -21,14 +21,36 @@ type BlockComponent = ComponentType<Props>
 
 // Add new block registrations here — key = CMS content type name
 const COMPONENT_MAP: Record<string, BlockComponent> = {
-  HeroBlock:     Hero,
-  RichTextBlock: RichText,
-  TextBlock:     RichText,    // alias
-  CtaBlock:      CtaBlock,
-  CTABlock:      CtaBlock,    // alias
-  CardGridBlock: CardGrid,
-  ImageBlock:    ImageBlock,
-  MediaBlock:    ImageBlock,  // alias
+  // Hero
+  'HeroBlock':        Hero,
+  'Hero Block':       Hero,
+
+  // Rich text
+  'RichTextBlock':    RichText,
+  'Rich Text Element': RichText,
+  'TextBlock':        RichText,
+  'Poor Text Element': RichText,
+  'Heading':          RichText,
+  'Story Block':      RichText,
+
+  // CTA
+  'CtaBlock':         CtaBlock,
+  'CTABlock':         CtaBlock,
+  'Contact Block':    CtaBlock,
+
+  // Cards / grids
+  'CardGridBlock':    CardGrid,
+  'Services Block':   CardGrid,
+  'Portfolio Grid Block': CardGrid,
+  'Logos Block':      CardGrid,
+  'Testimonials Block': CardGrid,
+  'Testimonial Item Block': CardGrid,
+
+  // Images
+  'ImageBlock':       ImageBlock,
+  'MediaBlock':       ImageBlock,
+  'Image':            ImageBlock,
+  'Generic media':    ImageBlock,
 }
 
 /** Returns the most-specific type name from a contentType array like ['Block','HeroBlock'] */

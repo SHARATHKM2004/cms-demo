@@ -3,8 +3,11 @@ import type { HeroBlock, BaseContent } from '@/lib/optimizely/types'
 interface Props { content: BaseContent }
 
 export default function Hero({ content }: Props) {
-  const b = content as HeroBlock
+  const b  = content as HeroBlock
   const bg = b.backgroundImage?.url
+  // Support both existing CMS fields (title/subtitle) and custom fields (headline/subheadline)
+  const heading = b.headline ?? b.title
+  const sub     = b.subheadline ?? b.subtitle
 
   return (
     <section
@@ -16,11 +19,11 @@ export default function Hero({ content }: Props) {
       }}
     >
       <div className="max-w-4xl mx-auto px-8 text-center">
-        {b.headline && (
-          <h1 className="text-5xl font-bold mb-5 leading-tight">{b.headline}</h1>
+        {heading && (
+          <h1 className="text-5xl font-bold mb-5 leading-tight">{heading}</h1>
         )}
-        {b.subheadline && (
-          <p className="text-xl mb-8 text-blue-100">{b.subheadline}</p>
+        {sub && (
+          <p className="text-xl mb-8 text-blue-100">{sub}</p>
         )}
         {b.ctaText && b.ctaUrl && (
           <a

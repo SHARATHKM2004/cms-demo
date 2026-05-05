@@ -37,6 +37,10 @@ export interface ExpandedContentReference {
 // ─── Block / component types ───────────────────────────────────────────────────
 
 export interface HeroBlock extends BaseContent {
+  // Existing CMS field names
+  title?: string
+  subtitle?: string
+  // Alternative field names (if added manually)
   headline?: string
   subheadline?: string
   ctaText?: string
