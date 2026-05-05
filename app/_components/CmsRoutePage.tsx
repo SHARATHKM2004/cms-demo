@@ -36,10 +36,17 @@ export async function generateCmsMetadata(slug?: string[]): Promise<Metadata> {
 export default async function CmsRoutePage({ slug }: { slug?: string[] }) {
   const { isEnabled: isDraft } = await draftMode()
   const url  = buildSiteUrl(slug)
-  const page = await getPageByUrl(url, isDraft)
+  let page = await getPageByUrl(url, isDraft)
+
+  // For homepage, also try fetching by START_PAGE_ID env var if set
+  if (!page && (!slug || slug.length === 0)) {
+    const startId = process.env.OPTIMIZELY_START_PAGE_ID
+    if (startId) {
+      page = await getContentById(startId, isDraft)
+    }
+  }
 
   if (!page) {
-    // Friendly "not found" instead of hard crash so demo stays stable
     notFound()
   }
 
