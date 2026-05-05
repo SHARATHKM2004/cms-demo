@@ -6,7 +6,7 @@ export default function RichText({ content }: Props) {
   const b = content as RichTextBlock & { headingText?: string }
   // Support body (classic), headingText (Content Graph HeadingElement), or name fallback
   const html    = b.body
-  const heading = b.headingText ?? b.headline
+  const heading = String(b.headingText ?? b.headline ?? '')  || undefined
 
   if (!html && !heading) return null
 
