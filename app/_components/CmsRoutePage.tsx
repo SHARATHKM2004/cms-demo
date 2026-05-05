@@ -8,7 +8,7 @@ import { draftMode } from 'next/headers'
 import { notFound }  from 'next/navigation'
 import type { Metadata } from 'next'
 
-import { getPageByUrl }    from '@/lib/optimizely/client'
+import { getPageByUrl, getContentById } from '@/lib/optimizely/client'
 import type { StandardPage, ExperiencePage } from '@/lib/optimizely/types'
 import CmsPage      from '@/components/cms/CmsPage'
 import DraftBanner  from '@/components/DraftBanner'
