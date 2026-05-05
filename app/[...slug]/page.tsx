@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import CmsRoutePage, { generateCmsMetadata } from '../_components/CmsRoutePage'
 
+export const dynamic = 'force-dynamic'
+
 interface Props {
   params: Promise<{ slug: string[] }>
 }
