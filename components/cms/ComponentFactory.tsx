@@ -19,38 +19,52 @@ interface Props { content: BaseContent }
 
 type BlockComponent = ComponentType<Props>
 
-// Add new block registrations here — key = CMS content type name
+// Add new block registrations here — key = CMS content type name or GraphQL type
 const COMPONENT_MAP: Record<string, BlockComponent> = {
   // Hero
-  'HeroBlock':        Hero,
-  'Hero Block':       Hero,
+  'HeroBlock':          Hero,
+  'Hero Block':         Hero,
 
-  // Rich text
-  'RichTextBlock':    RichText,
-  'Rich Text Element': RichText,
-  'TextBlock':        RichText,
-  'Poor Text Element': RichText,
-  'Heading':          RichText,
-  'Story Block':      RichText,
+  // Rich text / paragraph (Content Graph type names)
+  'RichTextBlock':      RichText,
+  'RichTextElement':    RichText,
+  'Rich Text Element':  RichText,
+  'TextBlock':          RichText,
+  'TextElement':        RichText,
+  'ParagraphElement':   RichText,
+  'PoorTextElement':    RichText,
+  'Poor Text Element':  RichText,
+  'Story Block':        RichText,
+  'StoryBlock':         RichText,
+
+  // Headings
+  'Heading':            RichText,
+  'HeadingElement':     RichText,
 
   // CTA
-  'CtaBlock':         CtaBlock,
-  'CTABlock':         CtaBlock,
-  'Contact Block':    CtaBlock,
+  'CtaBlock':           CtaBlock,
+  'CTABlock':           CtaBlock,
+  'CTAElement':         CtaBlock,
+  'Contact Block':      CtaBlock,
+  'ContactBlock':       CtaBlock,
 
   // Cards / grids
-  'CardGridBlock':    CardGrid,
-  'Services Block':   CardGrid,
+  'CardGridBlock':      CardGrid,
+  'Services Block':     CardGrid,
+  'ServicesBlock':      CardGrid,
   'Portfolio Grid Block': CardGrid,
-  'Logos Block':      CardGrid,
+  'PortfolioGridBlock': CardGrid,
+  'Logos Block':        CardGrid,
+  'LogosBlock':         CardGrid,
   'Testimonials Block': CardGrid,
-  'Testimonial Item Block': CardGrid,
+  'TestimonialsBlock':  CardGrid,
 
   // Images
-  'ImageBlock':       ImageBlock,
-  'MediaBlock':       ImageBlock,
-  'Image':            ImageBlock,
-  'Generic media':    ImageBlock,
+  'ImageBlock':         ImageBlock,
+  'ImageElement':       ImageBlock,
+  'MediaBlock':         ImageBlock,
+  'Image':              ImageBlock,
+  'Generic media':      ImageBlock,
 }
 
 /** Returns the most-specific type name from a contentType array like ['Block','HeroBlock'] */
