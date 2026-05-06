@@ -205,3 +205,23 @@ export async function getContentById(id: string | number, _isDraft = false): Pro
   return fallback ? normalizeItem(fallback) : null
 }
 
+/** Returns nav items for the Header — one entry per published top-level page */
+export async function getNavPages(): Promise<{ href: string; label: string }[]> {
+  const items = await fetchAllPublished()
+  if (!items.length) return [{ href: '/', label: 'Home' }]
+
+  // Keep only Experience/Page content types with a route segment
+  const pages = items.filter(i =>
+    i.routeSegment !== undefined &&
+    (i.contentType === 'BlankExperience' ||
+     i.contentType === 'SeoExperience'   ||
+     i.contentType.endsWith('Page')      ||
+     i.contentType.endsWith('Experience'))
+  )
+
+  return pages.map(i => ({
+    href:  i.routeSegment ? `/${i.routeSegment}` : '/',
+    label: i.displayName,
+  }))
+}
+
