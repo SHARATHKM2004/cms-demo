@@ -3,34 +3,39 @@ import { getNavPages } from '@/lib/optimizely/client'
 
 export default async function Header() {
   const cmsPages = await getNavPages().catch(() => [])
-  const nav = cmsPages.length ? cmsPages : [{ href: '/', label: 'Home' }]
+
+  // Always include Home; add CMS pages on top
+  const homeEntry = { href: '/', label: 'Home' }
+  const extraPages = cmsPages.filter(p => p.href !== '/')
+  const nav = [homeEntry, ...extraPages]
 
   return (
-    <header
-      style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}
-      className="sticky top-0 z-50"
-    >
-      <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-        <Link href="/" className="text-lg font-bold tracking-tight" style={{ color: 'var(--accent-2)' }}>
-          &lt;Portfolio /&gt;
+    <header className="bg-white/80 backdrop-blur-md border-b border-slate-100 sticky top-0 z-50">
+      <div className="container flex items-center justify-between h-16 px-6">
+
+        {/* Logo */}
+        <Link href="/" className="flex items-center gap-2.5 group">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center text-white text-xs font-extrabold">
+            SK
+          </div>
+          <span className="font-extrabold text-slate-900 text-lg tracking-tight group-hover:text-blue-600 transition">
+            Sharath<span className="text-blue-600">.</span>
+          </span>
         </Link>
+
+        {/* Nav links */}
         <nav className="hidden md:flex items-center gap-1">
           {nav.map(({ href, label }) => (
-            <Link
-              key={href}
-              href={href}
-              className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-              style={{ color: 'var(--text-muted)' }}
-            >
+            <Link key={href} href={href}
+              className="px-4 py-2 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-blue-50 font-medium text-sm transition">
               {label}
             </Link>
           ))}
         </nav>
-        <a
-          href="#contact"
-          className="px-4 py-2 rounded-lg text-sm font-semibold"
-          style={{ background: 'var(--accent)', color: '#fff' }}
-        >
+
+        {/* CTA */}
+        <a href="mailto:kmsharath@ieee.org"
+          className="hidden md:inline-flex px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition shadow-sm shadow-blue-200">
           Hire Me
         </a>
       </div>

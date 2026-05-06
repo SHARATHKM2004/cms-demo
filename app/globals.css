@@ -1,56 +1,57 @@
 @import "tailwindcss";
 
-/* ── Portfolio Design System ─────────────────────────────────── */
 :root {
-  --bg:            #0a0a0f;
-  --bg-card:       #12121a;
-  --bg-card-hover: #1a1a26;
-  --border:        #ffffff14;
-  --text:          #e8e8f0;
-  --text-muted:    #8888a8;
-  --accent:        #6c63ff;
-  --accent-2:      #a78bfa;
-  --accent-glow:   #6c63ff40;
-  --green:         #10b981;
-  --radius:        12px;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --primary: #2563eb;
+  --primary-light: #dbeafe;
+  --accent: #7c3aed;
+  --muted: #64748b;
+  --card: #ffffff;
+  --border: #e2e8f0;
+  --font-sans: var(--font-geist-sans);
 }
 
 @theme inline {
-  --color-background: var(--bg);
-  --color-foreground: var(--text);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
 }
 
 * { box-sizing: border-box; }
+
 html { scroll-behavior: smooth; }
 
 body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 3px; }
-::selection { background: var(--accent-glow); color: var(--accent-2); }
+/* Rich text content styles */
+.prose h1 { font-size: 2.25rem; font-weight: 700; margin-bottom: 1rem; color: var(--foreground); }
+.prose h2 { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--foreground); }
+.prose h3 { font-size: 1.375rem; font-weight: 600; margin-bottom: 0.5rem; }
+.prose p  { margin-bottom: 1rem; line-height: 1.75; color: var(--muted); }
+.prose a  { color: var(--primary); text-decoration: underline; }
+.prose ul { list-style: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
+.prose ol { list-style: decimal; padding-left: 1.5rem; margin-bottom: 1rem; }
+.prose li { margin-bottom: 0.25rem; color: var(--muted); }
+.prose strong { font-weight: 600; color: var(--foreground); }
+.prose code { background: #f1f5f9; padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.875em; }
+.prose pre  { background: #0f172a; color: #e2e8f0; padding: 1rem; border-radius: 8px; overflow-x: auto; margin-bottom: 1rem; }
+.prose blockquote { border-left: 4px solid var(--primary); padding-left: 1rem; color: var(--muted); font-style: italic; margin: 1.5rem 0; }
 
-/* CMS rich-text prose */
-.cms-prose h1 { font-size: 2.5rem; font-weight: 700; color: var(--text); margin-bottom: 1rem; }
-.cms-prose h2 { font-size: 2rem;   font-weight: 700; color: var(--text); margin-bottom: .75rem; }
-.cms-prose h3 { font-size: 1.5rem; font-weight: 600; color: var(--text); margin-bottom: .5rem; }
-.cms-prose p  { color: var(--text-muted); line-height: 1.8; margin-bottom: 1rem; }
-.cms-prose a  { color: var(--accent-2); text-decoration: underline; }
-.cms-prose ul { list-style: disc; padding-left: 1.5rem; color: var(--text-muted); }
-.cms-prose ol { list-style: decimal; padding-left: 1.5rem; color: var(--text-muted); }
-.cms-prose strong { color: var(--text); }
-.cms-prose code { background: var(--bg-card); padding: .2em .4em; border-radius: 4px; font-size: .9em; color: var(--accent-2); }
-
-/* subtle grid background */
-.grid-bg {
-  background-image:
-    linear-gradient(var(--border) 1px, transparent 1px),
-    linear-gradient(90deg, var(--border) 1px, transparent 1px);
-  background-size: 60px 60px;
+/* Gradient text utility */
+.gradient-text {
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
+
+/* Section spacing */
+.section { padding: 5rem 1.5rem; }
+.section-sm { padding: 3rem 1.5rem; }
+.container { max-width: 1100px; margin: 0 auto; }

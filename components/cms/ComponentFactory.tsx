@@ -1,95 +1,95 @@
 import type { ComponentType } from 'react'
 import type { BaseContent }   from '@/lib/optimizely/types'
 
-import Hero          from './Hero'
-import RichText      from './RichText'
-import CtaBlock      from './CtaBlock'
-import CardGrid      from './CardGrid'
-import ImageBlock    from './ImageBlock'
-import AboutBlock    from './AboutBlock'
-import ProjectsBlock from './ProjectsBlock'
-import ContactBlock  from './ContactBlock'
+import Hero           from './Hero'
+import RichText       from './RichText'
+import CtaBlock       from './CtaBlock'
+import CardGrid       from './CardGrid'
+import ImageBlock     from './ImageBlock'
+import HeroSection     from '@/components/portfolio/HeroSection'
+import AboutSection    from '@/components/portfolio/AboutSection'
+import SkillsSection   from '@/components/portfolio/SkillsSection'
+import ProjectsSection from '@/components/portfolio/ProjectsSection'
+import ContactSection  from '@/components/portfolio/ContactSection'
 
 interface Props { content: BaseContent }
 type BlockComponent = ComponentType<Props>
 
 const COMPONENT_MAP: Record<string, BlockComponent> = {
-  // ── Hero ──────────────────────────────────────────────────
-  'HeroBlock':              Hero,
-  'Hero Block':             Hero,
-  'HeroSection':            Hero,
-  'Hero':                   Hero,
+  // ── Portfolio sections (created in CMS Visual Builder) ────────────────────
+  'HeroSection':        HeroSection,
+  'HeroBlock':          HeroSection,
+  'Hero Block':         HeroSection,
+  'AboutSection':       AboutSection,
+  'AboutBlock':         AboutSection,
+  'SkillsSection':      SkillsSection,
+  'SkillsBlock':        SkillsSection,
+  'ProjectsSection':    ProjectsSection,
+  'ProjectsBlock':      ProjectsSection,
+  'ContactSection':     ContactSection,
+  'ContactBlock':       ContactSection,
 
-  // ── Rich text / paragraph ─────────────────────────────────
-  'RichTextBlock':          RichText,
-  'RichTextElement':        RichText,
-  'Rich Text Element':      RichText,
-  'ParagraphElement':       RichText,
-  'Paragraph of text':      RichText,
-  'PoorTextElement':        RichText,
-  'TextBlock':              RichText,
-  'TextElement':            RichText,
-  'StoryBlock':             RichText,
-  'HeadingElement':         RichText,
-  'Heading':                RichText,
+  // ── Rich text / paragraph ─────────────────────────────────────────────────
+  'RichTextBlock':      RichText,
+  'RichTextElement':    RichText,
+  'Rich Text Element':  RichText,
+  'TextBlock':          RichText,
+  'TextElement':        RichText,
+  'ParagraphElement':   RichText,
+  'Pragraph of text':   RichText,
+  'PoorTextElement':    RichText,
+  'Poor Text Element':  RichText,
+  'StoryBlock':         RichText,
+  'Story Block':        RichText,
+  'Heading':            RichText,
+  'HeadingElement':     RichText,
 
-  // ── About ────────────────────────────────────────────────
-  'AboutBlock':             AboutBlock,
-  'About Block':            AboutBlock,
-  'AboutSection':           AboutBlock,
-  'AboutMe':                AboutBlock,
+  // ── CTA ───────────────────────────────────────────────────────────────────
+  'CtaBlock':           CtaBlock,
+  'CTABlock':           CtaBlock,
+  'CTAElement':         CtaBlock,
+  'ContactBlock_CTA':   CtaBlock,
 
-  // ── Projects ─────────────────────────────────────────────
-  'ProjectsBlock':          ProjectsBlock,
-  'Projects Block':         ProjectsBlock,
-  'CardGridBlock':          ProjectsBlock,
-  'Services Block':         ProjectsBlock,
-  'Portfolio Grid Block':   ProjectsBlock,
-  'PortfolioGridBlock':     ProjectsBlock,
+  // ── Cards / grids ─────────────────────────────────────────────────────────
+  'CardGridBlock':      CardGrid,
+  'ServicesBlock':      CardGrid,
+  'Services Block':     CardGrid,
+  'PortfolioGridBlock': CardGrid,
+  'Portfolio Grid Block': CardGrid,
+  'TestimonialsBlock':  CardGrid,
 
-  // ── Contact ───────────────────────────────────────────────
-  'ContactBlock':           ContactBlock,
-  'Contact Block':          ContactBlock,
-  'ContactSection':         ContactBlock,
+  // ── Images ────────────────────────────────────────────────────────────────
+  'ImageBlock':         ImageBlock,
+  'ImageElement':       ImageBlock,
+  'Image':              ImageBlock,
+  'MediaBlock':         ImageBlock,
+  'Generic media':      ImageBlock,
 
-  // ── CTA ──────────────────────────────────────────────────
-  'CtaBlock':               CtaBlock,
-  'CTABlock':               CtaBlock,
-  'CTAElement':             CtaBlock,
-
-  // ── Images ────────────────────────────────────────────────
-  'ImageBlock':             ImageBlock,
-  'ImageElement':           ImageBlock,
-  'Image':                  ImageBlock,
-  'MediaBlock':             ImageBlock,
+  // ── Legacy Hero ───────────────────────────────────────────────────────────
+  'Hero':               Hero,
 }
 
 function resolveType(contentType: string[] | undefined): string | undefined {
   if (!contentType?.length) return undefined
-  return [...contentType].reverse().find(t => !['Block','Page','Content','Media'].includes(t))
+  return [...contentType].reverse().find(t => !['Block', 'Page', 'Content', 'Media'].includes(t))
 }
 
 export default function ComponentFactory({ content }: Props) {
   if (!content) return null
-  // Catch-all: any content with a body renders as RichText
-  if (!COMPONENT_MAP[resolveType(content.contentType as string[]) ?? ''] && content.body) {
-    return <RichText content={content} />
-  }
 
-  const typeName  = resolveType(content.contentType)
+  const typeName  = resolveType(content.contentType as string[])
   const Component = typeName ? COMPONENT_MAP[typeName] : undefined
+
+  // Catch-all: anything with HTML body → RichText
+  if (!Component && content.body) return <RichText content={content} />
 
   if (!Component) {
     if (process.env.NODE_ENV === 'development') {
       return (
         <div className="border-2 border-dashed border-amber-400 bg-amber-50 rounded-xl p-5 m-4 text-sm text-amber-800">
           <strong>Unmapped block:</strong>{' '}
-          <code>{typeName ?? content.contentType?.join(' / ')}</code>
+          <code>{typeName ?? (content.contentType as string[] | undefined)?.join(' / ')}</code>
           {' — '}<em>{content.name}</em>
-          <br />
-          <span className="text-xs text-amber-600">
-            Add it to COMPONENT_MAP in components/cms/ComponentFactory.tsx
-          </span>
         </div>
       )
     }
@@ -98,3 +98,4 @@ export default function ComponentFactory({ content }: Props) {
 
   return <Component content={content} />
 }
+

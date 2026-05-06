@@ -15,6 +15,7 @@ import type {
   ExpandedContentReference,
 } from '@/lib/optimizely/types'
 import ComponentFactory from './ComponentFactory'
+import PortfolioHome    from '@/components/portfolio/PortfolioHome'
 
 interface Props {
   content:  AnyContent
@@ -26,7 +27,6 @@ interface Props {
 function RenderNode({ node }: { node: CompositionNode }) {
   if (!node) return null
 
-  // Leaf: component node → hand off to factory
   if (node.nodeType === 'component' && node.component) {
     return <ComponentFactory content={node.component as BaseContent} />
   }
@@ -79,52 +79,64 @@ function isStandardPage(c: AnyContent): c is StandardPage {
   )
 }
 
+/** True when the routeSegment is the homepage */
+function isHomePage(c: AnyContent): boolean {
+  const rs = (c as Record<string, unknown>).routeSegment as string | undefined
+  return !rs || rs === '' || rs === 'home' || rs === 'demo-site' || rs === 'demosite'
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function CmsPage({ content }: Props) {
   const id = content.contentLink?.id
 
-  // Visual Builder / Experience page
+  // ── Homepage: always render the full portfolio layout ──────────────────────
+  if (isHomePage(content)) {
+    return <PortfolioHome content={content} />
+  }
+
+  // ── Visual Builder / Experience page ──────────────────────────────────────
   if (isExperiencePage(content) && content.composition) {
     return (
-      <main className="cms-page" data-content-link={id}>
+      <div className="cms-page" data-content-link={id}>
         <RenderNode node={content.composition} />
-      </main>
+      </div>
     )
   }
 
-  // Traditional page with ContentArea
+  // ── Traditional ContentArea page ──────────────────────────────────────────
   if (isStandardPage(content)) {
     const page  = content as StandardPage
     const items = page.mainContentArea ?? []
 
     if (items.length === 0) {
       return (
-        <main className="cms-page py-20 text-center" data-content-link={id}>
-          <p className="text-gray-400 text-sm">
+        <div className="cms-page py-20 text-center" data-content-link={id}>
+          <p className="text-slate-400 text-sm">
             This page has no content blocks yet. Add them in Optimizely CMS.
           </p>
-        </main>
+        </div>
       )
     }
 
     return (
-      <main className="cms-page" data-content-link={id}>
+      <div className="cms-page" data-content-link={id}>
         {items.map((ref: ExpandedContentReference, i: number) =>
           (ref.expandedValue ?? []).map((block: BaseContent, j: number) => (
             <ComponentFactory key={`${i}-${j}`} content={block} />
           )),
         )}
-      </main>
+      </div>
     )
   }
 
-  // Unknown page type — safe fallback
+  // ── Unknown page type ─────────────────────────────────────────────────────
   return (
-    <main className="cms-page py-20 text-center" data-content-link={id}>
-      <p className="text-gray-400 text-sm">
+    <div className="cms-page py-20 text-center" data-content-link={id}>
+      <p className="text-slate-400 text-sm">
         Page type <code>{content.contentType?.join('/')}</code> is not yet mapped.
       </p>
-    </main>
+    </div>
   )
 }
+
