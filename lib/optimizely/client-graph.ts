@@ -21,12 +21,8 @@ function hmacHeaders(body: string): Record<string, string> {
   const hash  = crypto.createHash('md5').update(body).digest('base64')
   const msg   = `POST\n${hash}\napplication/json\n${ts}\n${nonce}\n/content/v2`
   const sig   = crypto.createHmac('sha256', APP_SECRET).update(msg).digest('base64')
-  // Full format: epi-hmac {AppKey}:{Timestamp}:{Nonce}:{Signature}
+  // Full format per Optimizely Content Graph docs: epi-hmac {AppKey}:{Timestamp}:{Nonce}:{Signature}
   return { Authorization: `epi-hmac ${APP_KEY}:${ts}:${nonce}:${sig}` }
-}
-
-function singleKeyHeaders(): Record<string, string> {
-  return { Authorization: `epi-single ${APP_KEY}` }
 }
 
 // ─── Core GraphQL fetch ───────────────────────────────────────────────────────
@@ -37,8 +33,8 @@ async function gql<T>(
   preview = false,
 ): Promise<T | null> {
   const body = JSON.stringify({ query, variables: vars })
-  // Use HMAC for draft/preview (needs all-content access); single key for published
-  const authHeaders = preview ? hmacHeaders(body) : singleKeyHeaders()
+  // Always use HMAC — it works for both published and draft content
+  const authHeaders = hmacHeaders(body)
   const url  = preview ? `${GRAPH_URL}?preview=true` : GRAPH_URL
   try {
     const res = await fetch(url, {
@@ -118,6 +114,18 @@ const Q_BY_URL = `
 const Q_FIRST = `
   query GetFirst {
     BlankExperience(limit:1,orderBy:{_metadata:{published:DESC}}) { items { ${META} ${COMP} } }
+    SeoExperience(limit:1,orderBy:{_metadata:{published:DESC}})   { items { ${META} ${COMP} } }
+  }
+`
+
+// Last-resort: get any page type
+const Q_ANY_PAGE = `
+  query GetAnyPage {
+    _Content(limit:5,orderBy:{_metadata:{published:DESC}}) {
+      items {
+        _metadata { key types displayName url { default } }
+      }
+    }
   }
 `
 

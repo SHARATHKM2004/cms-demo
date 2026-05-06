@@ -1,50 +1,71 @@
 /**
  * GET /api/cms-debug
- * Shows exactly what the CMS API returns for a given URL.
- * Remove this file after debugging.
+ * Diagnoses the Content Graph connection.
+ * Remove after debugging.
  */
-import type { NextRequest } from 'next/server'
+import crypto from 'crypto'
 
-const CMS_URL = (process.env.OPTIMIZELY_CMS_URL ?? '').replace(/\/$/, '')
-const CLIENT_ID = process.env.OPTIMIZELY_CMS_CLIENT_ID ?? ''
-const CLIENT_SECRET = process.env.OPTIMIZELY_CMS_CLIENT_SECRET ?? ''
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? '').replace(/\/$/, '')
+const APP_KEY    = process.env.OPTIMIZELY_CMS_CLIENT_ID    ?? ''
+const APP_SECRET = process.env.OPTIMIZELY_CMS_CLIENT_SECRET ?? ''
+const GRAPH_URL  = 'https://cg.optimizely.com/content/v2'
 
-async function getToken() {
-  const res = await fetch(`${CMS_URL}/api/episerver/connect/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ grant_type: 'client_credentials', client_id: CLIENT_ID, client_secret: CLIENT_SECRET }),
-    cache: 'no-store',
-  })
-  const d = await res.json()
-  return d.access_token as string
+function hmacHeaders(body: string) {
+  const ts    = new Date().toISOString()
+  const nonce = crypto.randomBytes(8).toString('hex')
+  const hash  = crypto.createHash('md5').update(body).digest('base64')
+  const msg   = `POST\n${hash}\napplication/json\n${ts}\n${nonce}\n/content/v2`
+  const sig   = crypto.createHmac('sha256', APP_SECRET).update(msg).digest('base64')
+  return { Authorization: `epi-hmac ${APP_KEY}:${ts}:${nonce}:${sig}` }
 }
 
-export async function GET(request: NextRequest) {
-  const token = await getToken()
-  const testUrl = `${SITE_URL}/`
+export const dynamic = 'force-dynamic'
 
-  // Try fetching by URL
-  const byUrl = await fetch(
-    `${CMS_URL}/api/episerver/v3.0/content?contentUrl=${encodeURIComponent(testUrl)}&expand=*`,
-    { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }, cache: 'no-store' }
-  )
-  const byUrlData = await byUrl.json().catch(() => byUrl.text())
+export async function GET() {
+  const results: Record<string, unknown> = {
+    appKey:    APP_KEY ? APP_KEY.slice(0, 8) + '...' : 'MISSING',
+    appSecret: APP_SECRET ? APP_SECRET.slice(0, 8) + '...' : 'MISSING',
+    graphUrl:  GRAPH_URL,
+  }
 
-  // Try fetching root children
-  const rootChildren = await fetch(
-    `${CMS_URL}/api/episerver/v3.0/content/root/children?expand=*`,
-    { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }, cache: 'no-store' }
-  )
-  const rootData = await rootChildren.json().catch(() => rootChildren.text())
+  // Test 1: No auth (should return 401)
+  try {
+    const r = await fetch(GRAPH_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: '{ __typename }' }),
+      cache: 'no-store',
+    })
+    results['noAuthStatus'] = r.status
+    results['noAuthBody'] = (await r.text()).slice(0, 200)
+  } catch (e) { results['noAuthError'] = String(e) }
 
-  return Response.json({
-    siteUrl: SITE_URL,
-    testUrl,
-    byUrlStatus: byUrl.status,
-    byUrlData,
-    rootChildrenStatus: rootChildren.status,
-    rootChildrenData: rootData,
-  }, { status: 200 })
+  // Test 2: HMAC auth with simple introspection
+  const body2 = JSON.stringify({ query: '{ __typename }' })
+  try {
+    const r = await fetch(GRAPH_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...hmacHeaders(body2) },
+      body: body2,
+      cache: 'no-store',
+    })
+    results['hmacAuthStatus'] = r.status
+    results['hmacAuthBody'] = (await r.text()).slice(0, 500)
+  } catch (e) { results['hmacAuthError'] = String(e) }
+
+  // Test 3: HMAC auth — list all content
+  const body3 = JSON.stringify({ query: `{
+    _Content(limit:5) { items { _metadata { key types displayName url { default } } } }
+  }` })
+  try {
+    const r = await fetch(GRAPH_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...hmacHeaders(body3) },
+      body: body3,
+      cache: 'no-store',
+    })
+    results['listContentStatus'] = r.status
+    results['listContentBody'] = (await r.text()).slice(0, 1000)
+  } catch (e) { results['listContentError'] = String(e) }
+
+  return Response.json(results, { status: 200 })
 }
