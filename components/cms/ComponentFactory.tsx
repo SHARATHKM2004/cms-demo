@@ -1,78 +1,72 @@
-/**
- * ComponentFactory
- *
- * Maps a CMS content type to its React component.
- * Unknown types render a visible warning in dev and are silently skipped in prod.
- * This is the single place to register new block types.
- */
-
 import type { ComponentType } from 'react'
 import type { BaseContent }   from '@/lib/optimizely/types'
 
-import Hero       from './Hero'
-import RichText   from './RichText'
-import CtaBlock   from './CtaBlock'
-import CardGrid   from './CardGrid'
-import ImageBlock from './ImageBlock'
+import Hero          from './Hero'
+import RichText      from './RichText'
+import CtaBlock      from './CtaBlock'
+import CardGrid      from './CardGrid'
+import ImageBlock    from './ImageBlock'
+import AboutBlock    from './AboutBlock'
+import ProjectsBlock from './ProjectsBlock'
+import ContactBlock  from './ContactBlock'
 
 interface Props { content: BaseContent }
-
 type BlockComponent = ComponentType<Props>
 
-// Add new block registrations here — key = CMS content type name or GraphQL type
 const COMPONENT_MAP: Record<string, BlockComponent> = {
-  // Hero
-  'HeroBlock':          Hero,
-  'Hero Block':         Hero,
+  // ── Hero ──────────────────────────────────────────────────
+  'HeroBlock':              Hero,
+  'Hero Block':             Hero,
+  'HeroSection':            Hero,
+  'Hero':                   Hero,
 
-  // Rich text / paragraph (Content Graph type names)
-  'RichTextBlock':      RichText,
-  'RichTextElement':    RichText,
-  'Rich Text Element':  RichText,
-  'TextBlock':          RichText,
-  'TextElement':        RichText,
-  'ParagraphElement':   RichText,
-  'PoorTextElement':    RichText,
-  'Poor Text Element':  RichText,
-  'Story Block':        RichText,
-  'StoryBlock':         RichText,
+  // ── Rich text / paragraph ─────────────────────────────────
+  'RichTextBlock':          RichText,
+  'RichTextElement':        RichText,
+  'Rich Text Element':      RichText,
+  'ParagraphElement':       RichText,
+  'Paragraph of text':      RichText,
+  'PoorTextElement':        RichText,
+  'TextBlock':              RichText,
+  'TextElement':            RichText,
+  'StoryBlock':             RichText,
+  'HeadingElement':         RichText,
+  'Heading':                RichText,
 
-  // Headings
-  'Heading':            RichText,
-  'HeadingElement':     RichText,
+  // ── About ────────────────────────────────────────────────
+  'AboutBlock':             AboutBlock,
+  'About Block':            AboutBlock,
+  'AboutSection':           AboutBlock,
+  'AboutMe':                AboutBlock,
 
-  // CTA
-  'CtaBlock':           CtaBlock,
-  'CTABlock':           CtaBlock,
-  'CTAElement':         CtaBlock,
-  'Contact Block':      CtaBlock,
-  'ContactBlock':       CtaBlock,
+  // ── Projects ─────────────────────────────────────────────
+  'ProjectsBlock':          ProjectsBlock,
+  'Projects Block':         ProjectsBlock,
+  'CardGridBlock':          ProjectsBlock,
+  'Services Block':         ProjectsBlock,
+  'Portfolio Grid Block':   ProjectsBlock,
+  'PortfolioGridBlock':     ProjectsBlock,
 
-  // Cards / grids
-  'CardGridBlock':      CardGrid,
-  'Services Block':     CardGrid,
-  'ServicesBlock':      CardGrid,
-  'Portfolio Grid Block': CardGrid,
-  'PortfolioGridBlock': CardGrid,
-  'Logos Block':        CardGrid,
-  'LogosBlock':         CardGrid,
-  'Testimonials Block': CardGrid,
-  'TestimonialsBlock':  CardGrid,
+  // ── Contact ───────────────────────────────────────────────
+  'ContactBlock':           ContactBlock,
+  'Contact Block':          ContactBlock,
+  'ContactSection':         ContactBlock,
 
-  // Images
-  'ImageBlock':         ImageBlock,
-  'ImageElement':       ImageBlock,
-  'MediaBlock':         ImageBlock,
-  'Image':              ImageBlock,
-  'Generic media':      ImageBlock,
+  // ── CTA ──────────────────────────────────────────────────
+  'CtaBlock':               CtaBlock,
+  'CTABlock':               CtaBlock,
+  'CTAElement':             CtaBlock,
+
+  // ── Images ────────────────────────────────────────────────
+  'ImageBlock':             ImageBlock,
+  'ImageElement':           ImageBlock,
+  'Image':                  ImageBlock,
+  'MediaBlock':             ImageBlock,
 }
 
-/** Returns the most-specific type name from a contentType array like ['Block','HeroBlock'] */
 function resolveType(contentType: string[] | undefined): string | undefined {
   if (!contentType?.length) return undefined
-  return [...contentType]
-    .reverse()
-    .find(t => !['Block', 'Page', 'Content', 'Media'].includes(t))
+  return [...contentType].reverse().find(t => !['Block','Page','Content','Media'].includes(t))
 }
 
 export default function ComponentFactory({ content }: Props) {
