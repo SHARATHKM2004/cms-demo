@@ -74,25 +74,44 @@ type RestNode = {
   nodes?:       RestNode[]
 }
 
-/** Walk composition tree and collect { displayName → html } */
-function collectByName(node: RestNode | undefined, out: Record<string, string> = {}): Record<string, string> {
+/** Walk composition tree and collect all paragraph text values */
+function collectAllTexts(node: RestNode | undefined, out: string[] = []): string[] {
   if (!node) return out
-  if (node.nodeType === 'component' && node.component && node.displayName) {
+  if (node.nodeType === 'component' && node.component) {
     const p = node.component.properties ?? {}
-    // grab HTML from any property
     for (const prop of Object.values(p)) {
       const v = prop?.value
       const html =
         (v && typeof v === 'object' && 'html' in v ? (v as { html: string }).html : null) ??
         (typeof v === 'string' ? v : null)
-      if (html) {
-        out[node.displayName.toLowerCase().trim()] = html
-        break
-      }
+      if (html) { out.push(html); break }
     }
   }
-  for (const child of node.nodes ?? []) collectByName(child, out)
+  for (const child of node.nodes ?? []) collectAllTexts(child, out)
   return out
+}
+
+/**
+ * Build a key→value map from paragraph blocks.
+ *
+ * Two supported formats (user types either in the paragraph):
+ *   1. key=value          e.g.  hero-name=Sharath Kori
+ *   2. key: value         e.g.  hero-name: Sharath Kori
+ *
+ * Also still supports the old display-name approach as fallback.
+ */
+function buildConfigMap(node: RestNode | undefined): Record<string, string> {
+  const texts = collectAllTexts(node)
+  const map: Record<string, string> = {}
+  for (const html of texts) {
+    const plain = stripHtml(html).trim()
+    // Try  key=value  or  key: value
+    const m = plain.match(/^([a-z][a-z0-9-]*)[\s]*[=:]\s*(.+)$/i)
+    if (m) {
+      map[m[1].toLowerCase()] = m[2].trim()
+    }
+  }
+  return map
 }
 
 let _configCache: { config: SiteConfig; cachedAt: number } | null = null
@@ -116,11 +135,8 @@ export async function getSiteConfig(): Promise<SiteConfig> {
       return DEFAULTS
     }
 
-    const map = collectByName(configPage.composition as RestNode)
-    const get = (key: string, fallback: string) => {
-      const raw = map[key.toLowerCase()] ?? ''
-      return raw ? blockText(raw) : fallback
-    }
+    const map = buildConfigMap(configPage.composition as RestNode)
+    const get = (key: string, fallback: string) => map[key.toLowerCase()] ?? fallback
     const getHtml = (key: string, fallback: string) => map[key.toLowerCase()] ?? fallback
 
     const config: SiteConfig = {
