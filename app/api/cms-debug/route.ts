@@ -1,71 +1,81 @@
 /**
  * GET /api/cms-debug
- * Diagnoses the Content Graph connection.
+ * Diagnoses the CMS SaaS REST API connection.
  * Remove after debugging.
  */
 import crypto from 'crypto'
 
-const APP_KEY    = process.env.OPTIMIZELY_CMS_CLIENT_ID    ?? ''
-const APP_SECRET = process.env.OPTIMIZELY_CMS_CLIENT_SECRET ?? ''
-const GRAPH_URL  = 'https://cg.optimizely.com/content/v2'
+const CLIENT_ID     = process.env.OPTIMIZELY_CMS_CLIENT_ID    ?? ''
+const CLIENT_SECRET = process.env.OPTIMIZELY_CMS_CLIENT_SECRET ?? ''
+// CMS SaaS REST API uses a GLOBAL token endpoint, not instance-specific
+const TOKEN_URL     = 'https://api.cms.optimizely.com/oauth/token'
+const API_BASE      = 'https://api.cms.optimizely.com/v1'
+// Content Graph (separate credentials — received during onboarding)
+const GRAPH_URL     = 'https://cg.optimizely.com/content/v2'
 
 function hmacHeaders(body: string) {
   const ts    = new Date().toISOString()
   const nonce = crypto.randomBytes(8).toString('hex')
   const hash  = crypto.createHash('md5').update(body).digest('base64')
   const msg   = `POST\n${hash}\napplication/json\n${ts}\n${nonce}\n/content/v2`
-  const sig   = crypto.createHmac('sha256', APP_SECRET).update(msg).digest('base64')
-  return { Authorization: `epi-hmac ${APP_KEY}:${ts}:${nonce}:${sig}` }
+  const sig   = crypto.createHmac('sha256', CLIENT_SECRET).update(msg).digest('base64')
+  return { Authorization: `epi-hmac ${CLIENT_ID}:${ts}:${nonce}:${sig}` }
 }
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   const results: Record<string, unknown> = {
-    appKey:    APP_KEY ? APP_KEY.slice(0, 8) + '...' : 'MISSING',
-    appSecret: APP_SECRET ? APP_SECRET.slice(0, 8) + '...' : 'MISSING',
-    graphUrl:  GRAPH_URL,
+    clientId:  CLIENT_ID ? CLIENT_ID.slice(0, 8) + '...' : 'MISSING',
+    tokenUrl:  TOKEN_URL,
+    apiBase:   API_BASE,
   }
 
-  // Test 1: No auth (should return 401)
+  // Test 1: Get OAuth2 token from GLOBAL endpoint
+  let token = ''
   try {
-    const r = await fetch(GRAPH_URL, {
+    const r = await fetch(TOKEN_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: '{ __typename }' }),
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type:    'client_credentials',
+        client_id:     CLIENT_ID,
+        client_secret: CLIENT_SECRET,
+      }),
       cache: 'no-store',
     })
-    results['noAuthStatus'] = r.status
-    results['noAuthBody'] = (await r.text()).slice(0, 200)
-  } catch (e) { results['noAuthError'] = String(e) }
+    results['tokenStatus'] = r.status
+    const body = await r.json().catch(() => null)
+    results['tokenBody'] = body
+    token = (body as Record<string, string>)?.access_token ?? ''
+    results['gotToken'] = !!token
+  } catch (e) { results['tokenError'] = String(e) }
 
-  // Test 2: HMAC auth with simple introspection
-  const body2 = JSON.stringify({ query: '{ __typename }' })
-  try {
-    const r = await fetch(GRAPH_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...hmacHeaders(body2) },
-      body: body2,
-      cache: 'no-store',
-    })
-    results['hmacAuthStatus'] = r.status
-    results['hmacAuthBody'] = (await r.text()).slice(0, 500)
-  } catch (e) { results['hmacAuthError'] = String(e) }
+  // Test 2: List published content versions
+  if (token) {
+    try {
+      const r = await fetch(`${API_BASE}/content/versions?statuses=Published&pageSize=5`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        cache: 'no-store',
+      })
+      results['listStatus'] = r.status
+      const body = await r.text()
+      results['listBody'] = body.slice(0, 1500)
+    } catch (e) { results['listError'] = String(e) }
+  }
 
-  // Test 3: HMAC auth — list all content
-  const body3 = JSON.stringify({ query: `{
-    _Content(limit:5) { items { _metadata { key types displayName url { default } } } }
-  }` })
+  // Test 3: Graph with HMAC (just to show it's a separate credential)
+  const gBody = JSON.stringify({ query: '{ __typename }' })
   try {
     const r = await fetch(GRAPH_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...hmacHeaders(body3) },
-      body: body3,
+      headers: { 'Content-Type': 'application/json', ...hmacHeaders(gBody) },
+      body: gBody,
       cache: 'no-store',
     })
-    results['listContentStatus'] = r.status
-    results['listContentBody'] = (await r.text()).slice(0, 1000)
-  } catch (e) { results['listContentError'] = String(e) }
+    results['graphStatus'] = r.status
+    results['graphBody'] = (await r.text()).slice(0, 300)
+  } catch (e) { results['graphError'] = String(e) }
 
   return Response.json(results, { status: 200 })
 }
