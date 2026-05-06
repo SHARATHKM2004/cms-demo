@@ -1,55 +1,46 @@
 /**
- * PortfolioHome
- * 
- * The default homepage layout when the CMS page has minimal content.
- * Each section checks if a matching CMS block was passed in; if not, 
- * it renders hardcoded defaults so the page always looks great.
+ * PortfolioHome — full portfolio layout driven by CMS Site Config + composition blocks
  */
 import HeroSection     from '@/components/portfolio/HeroSection'
 import AboutSection    from '@/components/portfolio/AboutSection'
 import SkillsSection   from '@/components/portfolio/SkillsSection'
 import ProjectsSection from '@/components/portfolio/ProjectsSection'
 import ContactSection  from '@/components/portfolio/ContactSection'
+import { getSiteConfig } from '@/lib/optimizely/config'
 import type { AnyContent, BaseContent } from '@/lib/optimizely/types'
 import type { CompositionNode } from '@/lib/optimizely/types'
 
-interface Props {
-  content: AnyContent
-}
+interface Props { content: AnyContent }
 
-/** Walk the composition tree and collect components by their contentType */
 function collectBlocks(node: CompositionNode | undefined): Record<string, BaseContent> {
   const map: Record<string, BaseContent> = {}
   if (!node) return map
-
   if (node.nodeType === 'component' && node.component) {
     const type = (node.component.contentType as string[] | undefined)?.[0] ?? ''
     map[type] = node.component as BaseContent
   }
-  for (const child of node.nodes ?? []) {
-    Object.assign(map, collectBlocks(child))
-  }
+  for (const child of node.nodes ?? []) Object.assign(map, collectBlocks(child))
   return map
 }
 
-export default function PortfolioHome({ content }: Props) {
-  const c = content as AnyContent & { composition?: CompositionNode }
+export default async function PortfolioHome({ content }: Props) {
+  const c      = content as AnyContent & { composition?: CompositionNode }
   const blocks = collectBlocks(c.composition)
+  const config = await getSiteConfig()
 
-  // Match blocks by content type name (CMS type → section)
-  const heroBlock     = blocks['HeroBlock']     || blocks['HeroSection']     || undefined
-  const aboutBlock    = blocks['AboutBlock']    || blocks['AboutSection']    || undefined
-  const skillsBlock   = blocks['SkillsBlock']   || blocks['SkillsSection']   || undefined
-  const projectsBlock = blocks['ProjectsBlock'] || blocks['ProjectsSection'] || undefined
-  const contactBlock  = blocks['ContactBlock']  || blocks['ContactSection']  || undefined
+  const heroBlock     = blocks['HeroSection']     || blocks['HeroBlock']     || undefined
+  const aboutBlock    = blocks['AboutSection']    || blocks['AboutBlock']    || undefined
+  const skillsBlock   = blocks['SkillsSection']   || blocks['SkillsBlock']   || undefined
+  const projectsBlock = blocks['ProjectsSection'] || blocks['ProjectsBlock'] || undefined
+  const contactBlock  = blocks['ContactSection']  || blocks['ContactBlock']  || undefined
 
   return (
     <>
-      <HeroSection     content={heroBlock} />
-      <AboutSection    content={aboutBlock} />
-      <SkillsSection   content={skillsBlock} />
-      <ProjectsSection content={projectsBlock} />
-      <ContactSection  content={contactBlock} />
+      <HeroSection     content={heroBlock}     config={config} />
+      <AboutSection    content={aboutBlock}    config={config} />
+      <SkillsSection   content={skillsBlock}   config={config} />
+      <ProjectsSection content={projectsBlock} config={config} />
+      <ContactSection  content={contactBlock}  config={config} />
     </>
   )
 }

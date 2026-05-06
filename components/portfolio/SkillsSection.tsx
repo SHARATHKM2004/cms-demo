@@ -1,4 +1,5 @@
 import type { BaseContent } from '@/lib/optimizely/types'
+import type { SiteConfig } from '@/lib/optimizely/config'
 
 const DEFAULT_SKILLS = [
   { name: 'React',        level: 90, color: 'bg-cyan-500' },
@@ -11,7 +12,7 @@ const DEFAULT_SKILLS = [
   { name: 'Node.js',      level: 65, color: 'bg-green-600' },
 ]
 
-interface Props { content?: BaseContent }
+interface Props { content?: BaseContent; config?: SiteConfig }
 
 export default function SkillsSection({ content }: Props) {
   const c = content as Record<string, unknown> | undefined

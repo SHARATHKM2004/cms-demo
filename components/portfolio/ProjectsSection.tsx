@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { BaseContent } from '@/lib/optimizely/types'
+import type { SiteConfig } from '@/lib/optimizely/config'
 
 const DEFAULT_PROJECTS = [
   {
@@ -28,7 +29,7 @@ const DEFAULT_PROJECTS = [
   },
 ]
 
-interface Props { content?: BaseContent }
+interface Props { content?: BaseContent; config?: SiteConfig }
 
 export default function ProjectsSection({ content }: Props) {
   const c = content as Record<string, unknown> | undefined

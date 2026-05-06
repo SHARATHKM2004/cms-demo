@@ -146,7 +146,7 @@ function normalizeItem(item: RestItem): AnyContent {
 
 // ─── Data fetching ────────────────────────────────────────────────────────────
 
-async function fetchAllPublished(): Promise<RestItem[]> {
+export async function fetchAllPublished(): Promise<RestItem[]> {
   try {
     const token = await getAccessToken()
     const res = await fetch(

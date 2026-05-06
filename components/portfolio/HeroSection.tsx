@@ -1,72 +1,79 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import type { BaseContent } from '@/lib/optimizely/types'
+import type { SiteConfig } from '@/lib/optimizely/config'
 
-interface Props { content?: BaseContent }
+interface Props { content?: BaseContent; config?: SiteConfig }
 
-export default function HeroSection({ content }: Props) {
-  // CMS fields override defaults
+export default function HeroSection({ content, config }: Props) {
   const c = content as Record<string, unknown> | undefined
-  const headline   = (c?.headline   as string) || 'Hi, I\'m Sharath Kori'
-  const subheadline = (c?.subheadline as string) || 'Full Stack Developer'
-  const body       = (c?.body       as string) || ''
-  const ctaText    = (c?.ctaText    as string) || 'View My Work'
-  const ctaUrl     = (c?.ctaUrl     as string) || '/projects'
-  const ctaText2   = (c?.ctaText2   as string) || 'Contact Me'
-  const ctaUrl2    = (c?.ctaUrl2    as string) || '/contact'
+  // CMS block overrides → config → hardcoded defaults
+  const name     = (c?.headline as string)    || config?.name             || 'Sharath Kori'
+  const title    = (c?.subheadline as string) || config?.title            || 'Full Stack Developer'
+  const bio      = (c?.body as string)        || config?.heroBio          || ''
+  const ctaText  = (c?.ctaText as string)     || config?.ctaPrimaryText   || 'View My Work'
+  const ctaUrl   = (c?.ctaUrl as string)      || config?.ctaPrimaryUrl    || '#projects'
+  const ctaText2 = config?.ctaSecondaryText                               || 'Contact Me'
+  const github   = config?.githubUrl                                      || 'https://github.com/SHARATHKM2004'
+  const linkedin = config?.linkedinUrl                                    || 'https://www.linkedin.com/in/sharath-km-422707296/'
+  const email    = config?.email                                          || 'kmsharath@ieee.org'
+  const photo    = config?.profileImage                                   || ''
+  const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 
   return (
-    <section className="section min-h-[90vh] flex items-center bg-gradient-to-br from-blue-50 via-white to-violet-50">
+    <section id="home" className="section min-h-[90vh] flex items-center bg-gradient-to-br from-blue-50 via-white to-violet-50">
       <div className="container flex flex-col-reverse md:flex-row items-center gap-12">
 
         {/* Text */}
         <div className="flex-1 text-center md:text-left">
           <span className="inline-block px-4 py-1.5 rounded-full bg-blue-100 text-blue-700 text-sm font-semibold mb-4 tracking-wide">
-            {subheadline}
+            {title}
           </span>
           <h1 className="text-5xl md:text-6xl font-extrabold leading-tight mb-5">
-            <span className="gradient-text">{headline}</span>
+            <span className="gradient-text">Hi, I&apos;m {name}</span>
           </h1>
-          {body
-            ? <div className="prose mb-8" dangerouslySetInnerHTML={{ __html: body }} />
-            : (
-              <p className="text-lg text-slate-600 leading-relaxed mb-8 max-w-xl">
-                I build modern, performant web apps using <strong>React</strong>, <strong>Next.js</strong>, and <strong>TypeScript</strong> — with real-time CMS integrations and clean UIs.
+          {bio
+            ? <div className="text-lg text-slate-600 leading-relaxed mb-8 max-w-xl prose" dangerouslySetInnerHTML={{ __html: bio }} />
+            : <p className="text-lg text-slate-600 leading-relaxed mb-8 max-w-xl">
+                I build modern, performant web apps using <strong>React</strong>, <strong>Next.js</strong>, and <strong>TypeScript</strong>.
               </p>
-            )
           }
           <div className="flex flex-wrap gap-4 justify-center md:justify-start">
             <Link href={ctaUrl}
               className="px-6 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition shadow-md shadow-blue-200">
               {ctaText}
             </Link>
-            <Link href={ctaUrl2}
+            <Link href="#contact"
               className="px-6 py-3 rounded-xl border-2 border-blue-600 text-blue-600 font-semibold hover:bg-blue-50 transition">
               {ctaText2}
             </Link>
           </div>
 
-          {/* Social links */}
           <div className="flex gap-5 mt-8 justify-center md:justify-start">
-            <a href="https://github.com/SHARATHKM2004" target="_blank" rel="noopener noreferrer"
+            <a href={github} target="_blank" rel="noopener noreferrer"
               className="text-slate-500 hover:text-slate-900 transition text-sm font-medium flex items-center gap-1.5">
               <GithubIcon /> GitHub
             </a>
-            <a href="https://www.linkedin.com/in/sharath-km-422707296/" target="_blank" rel="noopener noreferrer"
+            <a href={linkedin} target="_blank" rel="noopener noreferrer"
               className="text-slate-500 hover:text-blue-600 transition text-sm font-medium flex items-center gap-1.5">
               <LinkedinIcon /> LinkedIn
             </a>
-            <a href="mailto:kmsharath@ieee.org"
+            <a href={`mailto:${email}`}
               className="text-slate-500 hover:text-blue-600 transition text-sm font-medium flex items-center gap-1.5">
               <MailIcon /> Email
             </a>
           </div>
         </div>
 
-        {/* Avatar */}
+        {/* Avatar / Photo */}
         <div className="flex-shrink-0">
-          <div className="w-56 h-56 md:w-72 md:h-72 rounded-full bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-2xl shadow-blue-200 text-white text-8xl font-bold select-none">
-            SK
-          </div>
+          {photo
+            ? <Image src={photo} alt={name} width={288} height={288}
+                className="w-56 h-56 md:w-72 md:h-72 rounded-full object-cover shadow-2xl shadow-blue-200 border-4 border-white" />
+            : <div className="w-56 h-56 md:w-72 md:h-72 rounded-full bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-2xl shadow-blue-200 text-white text-7xl font-bold select-none">
+                {initials}
+              </div>
+          }
         </div>
 
       </div>

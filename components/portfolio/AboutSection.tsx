@@ -1,10 +1,18 @@
+import Image from 'next/image'
 import type { BaseContent } from '@/lib/optimizely/types'
+import type { SiteConfig } from '@/lib/optimizely/config'
 
-interface Props { content?: BaseContent }
+interface Props { content?: BaseContent; config?: SiteConfig }
 
-export default function AboutSection({ content }: Props) {
-  const c = content as Record<string, unknown> | undefined
-  const body = (c?.body as string) || ''
+export default function AboutSection({ content, config }: Props) {
+  const c    = content as Record<string, unknown> | undefined
+  const body = (c?.body as string) || config?.aboutBio || ''
+  const name = config?.name    || 'Sharath Kori'
+  const role = config?.title   || 'Full Stack Developer'
+  const github   = config?.githubUrl   || 'https://github.com/SHARATHKM2004'
+  const linkedin = config?.linkedinUrl || 'https://www.linkedin.com/in/sharath-km-422707296/'
+  const photo    = config?.profileImage || ''
+  const initials = name.split(' ').map((w: string) => w[0]).join('').slice(0,2).toUpperCase()
 
   return (
     <section id="about" className="section bg-white">
@@ -14,17 +22,18 @@ export default function AboutSection({ content }: Props) {
 
           {/* Avatar card */}
           <div className="flex-shrink-0 flex flex-col items-center gap-4">
-            <div className="w-40 h-40 rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center text-white text-5xl font-bold shadow-lg shadow-blue-100">
-              SK
-            </div>
+            {photo
+              ? <Image src={photo} alt={name} width={160} height={160} className="w-40 h-40 rounded-2xl object-cover shadow-lg shadow-blue-100" />
+              : <div className="w-40 h-40 rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center text-white text-5xl font-bold shadow-lg shadow-blue-100">{initials}</div>
+            }
             <div className="text-center">
-              <p className="font-bold text-lg text-slate-900">Sharath Kori</p>
-              <p className="text-blue-600 text-sm font-medium">Full Stack Developer</p>
+              <p className="font-bold text-lg text-slate-900">{name}</p>
+              <p className="text-blue-600 text-sm font-medium">{role}</p>
             </div>
             <div className="flex gap-3 mt-1">
-              <a href="https://github.com/SHARATHKM2004" target="_blank" rel="noopener noreferrer"
+              <a href={github} target="_blank" rel="noopener noreferrer"
                 className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-medium hover:bg-slate-200 transition">GitHub</a>
-              <a href="https://www.linkedin.com/in/sharath-km-422707296/" target="_blank" rel="noopener noreferrer"
+              <a href={linkedin} target="_blank" rel="noopener noreferrer"
                 className="px-3 py-1.5 rounded-lg bg-blue-100 text-blue-700 text-xs font-medium hover:bg-blue-200 transition">LinkedIn</a>
             </div>
           </div>
