@@ -51,16 +51,20 @@ export async function GET() {
     results['gotToken'] = !!token
   } catch (e) { results['tokenError'] = String(e) }
 
-  // Test 2: List published content versions
+  // Test 2: List published content versions — show raw composition
   if (token) {
     try {
-      const r = await fetch(`${API_BASE}/content/versions?statuses=Published&pageSize=5`, {
+      const r = await fetch(`${API_BASE}/content/versions?statuses=Published&pageSize=10&locales=en`, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
         cache: 'no-store',
       })
       results['listStatus'] = r.status
-      const body = await r.text()
-      results['listBody'] = body.slice(0, 1500)
+      const data = await r.json().catch(() => null) as { items?: unknown[] } | null
+      results['itemCount'] = data?.items?.length ?? 0
+      // Show full first item so we can see contentType + composition + properties
+      results['firstItem'] = data?.items?.[0] ?? null
+      results['allRouteSegments'] = (data?.items as Array<{routeSegment?: string; displayName?: string; contentType?: string}> ?? [])
+        .map(i => ({ name: i.displayName, type: i.contentType, route: i.routeSegment }))
     } catch (e) { results['listError'] = String(e) }
   }
 

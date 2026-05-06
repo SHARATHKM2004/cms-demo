@@ -69,10 +69,20 @@ type RestItem = {
 function normalizeComponent(comp: RestComponent): BaseContent {
   const p = comp.properties ?? {}
 
-  // Extract HTML from common rich-text property names
-  const html = (p.MainBody?.value as { html?: string } | null)?.html
-            ?? (p.Body?.value    as { html?: string } | null)?.html
-            ?? undefined
+  // Scan ALL properties for an HTML value — works regardless of property name
+  let html: string | undefined
+  for (const prop of Object.values(p)) {
+    const v = prop?.value
+    if (v && typeof v === 'object' && 'html' in v && typeof (v as Record<string,unknown>).html === 'string') {
+      html = (v as { html: string }).html
+      break
+    }
+    // plain string with HTML tags
+    if (typeof v === 'string' && v.includes('<')) {
+      html = v
+      break
+    }
+  }
 
   // Scalar value helper
   const str = (keys: string[]): string | undefined => {

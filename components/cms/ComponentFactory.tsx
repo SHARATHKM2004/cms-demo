@@ -77,6 +77,10 @@ function resolveType(contentType: string[] | undefined): string | undefined {
 
 export default function ComponentFactory({ content }: Props) {
   if (!content) return null
+  // Catch-all: any content with a body renders as RichText
+  if (!COMPONENT_MAP[resolveType(content.contentType as string[]) ?? ''] && content.body) {
+    return <RichText content={content} />
+  }
 
   const typeName  = resolveType(content.contentType)
   const Component = typeName ? COMPONENT_MAP[typeName] : undefined
