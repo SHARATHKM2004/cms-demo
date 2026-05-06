@@ -1,28 +1,27 @@
 /**
- * Optimizely SaaS CMS — Content Delivery API v3 client
+ * Optimizely SaaS CMS — REST API v1 client
  *
- * Auth:    OAuth2 client_credentials  →  token is cached in-process
- * Fetch:   Next.js fetch with revalidation tags so on-demand revalidation works
- * Draft:   Pass isDraft=true to include the Bearer token and bypass cache
+ * Auth:  OAuth2 client_credentials → POST https://api.cms.optimizely.com/oauth/token
+ * Data:  GET  https://api.cms.optimizely.com/v1/content/versions
+ *
+ * The composition tree (Visual Builder) and all block properties are returned
+ * inline in the versions response — no separate content-delivery fetch needed.
  */
 
-import type { AnyContent } from './types'
+import type { AnyContent, BaseContent, CompositionNode } from './types'
 
-const CMS_URL   = (process.env.OPTIMIZELY_CMS_URL   ?? '').replace(/\/$/, '')
-const CLIENT_ID = process.env.OPTIMIZELY_CMS_CLIENT_ID ?? ''
+const CLIENT_ID     = process.env.OPTIMIZELY_CMS_CLIENT_ID     ?? ''
 const CLIENT_SECRET = process.env.OPTIMIZELY_CMS_CLIENT_SECRET ?? ''
-const API_BASE  = `${CMS_URL}/api/episerver/v3.0`
+const TOKEN_URL     = 'https://api.cms.optimizely.com/oauth/token'
+const API_BASE      = 'https://api.cms.optimizely.com/v1'
 
-// ─── OAuth2 token (server-side in-memory cache) ────────────────────────────────
+// ─── Token cache (in-process, ~5 min TTL) ─────────────────────────────────────
 
-type TokenCache = { token: string; expiresAt: number } | null
-let _tokenCache: TokenCache = null
+let _tokenCache: { token: string; expiresAt: number } | null = null
 
 async function getAccessToken(): Promise<string> {
-  if (_tokenCache && Date.now() < _tokenCache.expiresAt) {
-    return _tokenCache.token
-  }
-  const res = await fetch(`${CMS_URL}/api/episerver/connect/token`, {
+  if (_tokenCache && Date.now() < _tokenCache.expiresAt) return _tokenCache.token
+  const res = await fetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -32,132 +31,167 @@ async function getAccessToken(): Promise<string> {
     }),
     cache: 'no-store',
   })
-  if (!res.ok) {
-    throw new Error(`CMS token error ${res.status}: ${await res.text()}`)
-  }
+  if (!res.ok) throw new Error(`CMS token ${res.status}: ${await res.text()}`)
   const data = await res.json() as { access_token: string; expires_in: number }
-  _tokenCache = {
-    token:     data.access_token,
-    expiresAt: Date.now() + (data.expires_in - 60) * 1000,
-  }
+  _tokenCache = { token: data.access_token, expiresAt: Date.now() + (data.expires_in - 30) * 1000 }
   return _tokenCache.token
 }
 
-// ─── Core fetch helper ─────────────────────────────────────────────────────────
+// ─── REST API types (inline from versions endpoint) ───────────────────────────
 
-interface FetchOpts {
-  isDraft?:  boolean
-  expand?:   string
-  language?: string
+type RestProp = { value?: unknown }
+type RestComponent = {
+  contentType: string
+  properties?: Record<string, RestProp>
+}
+type RestNode = {
+  id?: string
+  displayName?: string
+  nodeType: string
+  layoutType?: string
+  component?: RestComponent
+  nodes?: RestNode[]
+}
+type RestItem = {
+  key:           string
+  locale:        string
+  version:       string
+  contentType:   string
+  displayName:   string
+  published?:    string
+  status:        string
+  routeSegment?: string
+  composition?:  RestNode
 }
 
-async function cmsGet<T = AnyContent>(
-  endpoint:    string,
-  queryParams: Record<string, string> = {},
-  opts:        FetchOpts = {},
-): Promise<T | null> {
-  const { isDraft = false, expand = '*', language = 'en' } = opts
+// ─── Normalisation ────────────────────────────────────────────────────────────
 
-  const url = new URL(`${API_BASE}${endpoint}`)
-  url.searchParams.set('expand', expand)
-  for (const [k, v] of Object.entries(queryParams)) url.searchParams.set(k, v)
+function normalizeComponent(comp: RestComponent): BaseContent {
+  const p = comp.properties ?? {}
 
-  // Try to get auth token but don't crash if it fails — fall back to unauthenticated
-  let authHeader: string | undefined
-  try {
-    authHeader = `Bearer ${await getAccessToken()}`
-  } catch (err) {
-    console.warn('[CMS] token fetch failed, trying without auth:', err)
-  }
+  // Extract HTML from common rich-text property names
+  const html = (p.MainBody?.value as { html?: string } | null)?.html
+            ?? (p.Body?.value    as { html?: string } | null)?.html
+            ?? undefined
 
-  const headers: HeadersInit = {
-    Accept:            'application/json',
-    'Accept-Language': language,
-    ...(authHeader ? { Authorization: authHeader } : {}),
-  }
-
-  try {
-    const res = await fetch(url.toString(), {
-      headers,
-      next: isDraft
-        ? { revalidate: 0 }
-        : { revalidate: 60, tags: ['cms-content'] },
-    })
-
-    if (res.status === 404) return null
-    if (!res.ok) {
-      console.error(`[CMS] ${res.status} ${res.statusText} — ${url}`)
-      return null
+  // Scalar value helper
+  const str = (keys: string[]): string | undefined => {
+    for (const k of keys) {
+      const v = p[k]?.value
+      if (typeof v === 'string' && v) return v
     }
-    return res.json() as Promise<T>
-  } catch (err) {
-    console.error('[CMS] fetch error:', err)
-    return null
+    return undefined
+  }
+
+  // Image URL from common property names
+  const imgVal = (p.Image?.value ?? p.BackgroundImage?.value) as
+    { url?: string; src?: string; altText?: string } | null | undefined
+
+  return {
+    contentType:  [comp.contentType],
+    name:         comp.contentType,
+    contentLink:  { id: 0, workId: 0, guidValue: '' },
+    body:         html,
+    headingText:  str(['HeadingText', 'Heading']),
+    headline:     str(['Headline', 'Heading', 'Title']),
+    subheadline:  str(['Subheading', 'SubHeading', 'Subtitle']),
+    ctaText:      str(['ButtonText', 'CtaText', 'LinkText']),
+    ctaUrl:       str(['ButtonUrl', 'CtaUrl', 'LinkUrl']),
+    image:        imgVal ? { id: '', url: imgVal.url ?? imgVal.src ?? '', alt: imgVal.altText } : undefined,
+    // expose all raw properties for future use
+    _properties:  p,
+  } as unknown as BaseContent
+}
+
+function normalizeNode(node: RestNode): CompositionNode {
+  if (node.nodeType === 'component' && node.component) {
+    return {
+      nodeType:    'component',
+      key:         node.id,
+      displayName: node.displayName,
+      component:   normalizeComponent(node.component),
+    }
+  }
+  const type = node.nodeType as CompositionNode['nodeType']
+  return {
+    nodeType:    type,
+    key:         node.id,
+    displayName: node.displayName,
+    // sections may carry a component (e.g. BlankSection)
+    component:   node.component ? normalizeComponent(node.component) : undefined,
+    nodes:       (node.nodes ?? []).map(normalizeNode),
   }
 }
 
-// ─── Public API ────────────────────────────────────────────────────────────────
+function normalizeItem(item: RestItem): AnyContent {
+  return {
+    contentType:  [item.contentType],
+    name:         item.displayName,
+    contentLink:  { id: 0, workId: 0, guidValue: item.key },
+    status:       item.status,
+    routeSegment: item.routeSegment,
+    composition:  item.composition ? normalizeNode(item.composition) : undefined,
+  } as unknown as AnyContent
+}
 
-/**
- * Fetch a CMS page by its full public URL.
- *
- * Requires the site's base URL to be registered in
- * Optimizely CMS › Settings › Sites (must match NEXT_PUBLIC_SITE_URL).
- *
- * The API may return a single object or a single-item array.
- */
-export async function getPageByUrl(
-  fullUrl: string,
-  isDraft = false,
-): Promise<AnyContent | null> {
-  const base = fullUrl.replace(/\/$/, '')
+// ─── Data fetching ────────────────────────────────────────────────────────────
 
-  // Build a list of URL variants to try (Optimizely stores with lang prefix by default)
-  const candidates = [
-    `${base}/`,
-    `${base}/en/`,
-    `${base}/en`,
-    base,
-  ]
-
-  for (const url of candidates) {
-    const result = await cmsGet<AnyContent | AnyContent[]>(
-      '/content',
-      { contentUrl: url },
-      { isDraft },
+async function fetchAllPublished(): Promise<RestItem[]> {
+  try {
+    const token = await getAccessToken()
+    const res = await fetch(
+      `${API_BASE}/content/versions?statuses=Published&pageSize=200&locales=en`,
+      { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }, cache: 'no-store' },
     )
-    if (result) {
-      return Array.isArray(result) ? (result[0] ?? null) : result
+    if (!res.ok) {
+      console.error(`[CMS] list ${res.status}: ${(await res.text()).slice(0, 200)}`)
+      return []
     }
+    const data = await res.json() as { items?: RestItem[] }
+    return data.items ?? []
+  } catch (err) {
+    console.error('[CMS] fetchAllPublished error:', err)
+    return []
+  }
+}
+
+// ─── Public API ───────────────────────────────────────────────────────────────
+
+export async function getPageByUrl(fullUrl: string, _isDraft = false): Promise<AnyContent | null> {
+  const items = await fetchAllPublished()
+  if (!items.length) return null
+
+  // Extract the last meaningful path segment as routeSegment
+  let pathname = '/'
+  try { pathname = new URL(fullUrl).pathname } catch { /* ignore */ }
+  const segments = pathname.split('/').filter(s => s && s !== 'en')
+  const slug = segments[segments.length - 1] ?? ''
+
+  if (!slug) {
+    // Homepage: prefer item with routeSegment matching "home" / "" / start page key env var
+    const startKey = (process.env.OPTIMIZELY_START_PAGE_ID ?? '').replace(/-/g, '')
+    const home = items.find(i =>
+      i.key.replace(/-/g, '') === startKey ||
+      i.routeSegment === 'home' ||
+      i.routeSegment === ''
+    ) ?? items.find(i => i.contentType === 'BlankExperience' || i.contentType === 'SeoExperience')
+    return home ? normalizeItem(home) : null
   }
 
-  // Last resort: search for start page in root children
-  return getStartPage(isDraft)
+  const match = items.find(i => i.routeSegment === slug || i.key.replace(/-/g, '') === slug)
+  return match ? normalizeItem(match) : null
 }
 
-/** Fetch the start page from CMS root children */
-async function getStartPage(isDraft = false): Promise<AnyContent | null> {
-  const children = await cmsGet<AnyContent[]>('/content/root/children', {}, { isDraft })
-  if (!children?.length) return null
-  // Return first published page-type item
-  return children.find(c =>
-    Array.isArray(c.contentType) &&
-    c.contentType.some(t => t.toLowerCase().includes('page'))
-  ) ?? children[0] ?? null
+export async function getContentById(id: string | number, _isDraft = false): Promise<AnyContent | null> {
+  const items = await fetchAllPublished()
+  if (!items.length) return null
+
+  const needle = String(id).replace(/-/g, '')
+  const match = items.find(i => i.key.replace(/-/g, '') === needle)
+  if (match) return normalizeItem(match)
+
+  // id didn't match any GUID → return the start page (first published Experience)
+  const fallback = items.find(i => i.contentType === 'BlankExperience' || i.contentType === 'SeoExperience')
+  return fallback ? normalizeItem(fallback) : null
 }
 
-/** Fetch a single content item by its numeric ID. */
-export async function getContentById(
-  id: string | number,
-  isDraft = false,
-): Promise<AnyContent | null> {
-  return cmsGet<AnyContent>(`/content/${id}`, {}, { isDraft })
-}
-
-/** Fetch the direct children of a content item (e.g. blog listing). */
-export async function getContentChildren(
-  id: string | number,
-  isDraft = false,
-): Promise<AnyContent[]> {
-  return (await cmsGet<AnyContent[]>(`/content/${id}/children`, {}, { isDraft })) ?? []
-}
