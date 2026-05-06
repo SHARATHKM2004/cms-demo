@@ -8,10 +8,10 @@
 import crypto from 'crypto'
 import type { AnyContent, BaseContent, CompositionNode } from './types'
 
-const CMS_BASE   = (process.env.OPTIMIZELY_CMS_URL ?? '').replace(/\/$/, '')
 const APP_KEY    = process.env.OPTIMIZELY_CMS_CLIENT_ID ?? ''
 const APP_SECRET = process.env.OPTIMIZELY_CMS_CLIENT_SECRET ?? ''
-const GRAPH_URL  = `${CMS_BASE}/content/v2`
+// Content Graph lives at a separate global endpoint, not the CMS UI domain
+const GRAPH_URL  = 'https://cg.optimizely.com/content/v2'
 
 // ─── HMAC auth ────────────────────────────────────────────────────────────────
 
@@ -21,7 +21,12 @@ function hmacHeaders(body: string): Record<string, string> {
   const hash  = crypto.createHash('md5').update(body).digest('base64')
   const msg   = `POST\n${hash}\napplication/json\n${ts}\n${nonce}\n/content/v2`
   const sig   = crypto.createHmac('sha256', APP_SECRET).update(msg).digest('base64')
-  return { Authorization: `epi-hmac ${APP_KEY}:${sig}`, 'X-Timestamp': ts, 'X-Nonce': nonce }
+  // Full format: epi-hmac {AppKey}:{Timestamp}:{Nonce}:{Signature}
+  return { Authorization: `epi-hmac ${APP_KEY}:${ts}:${nonce}:${sig}` }
+}
+
+function singleKeyHeaders(): Record<string, string> {
+  return { Authorization: `epi-single ${APP_KEY}` }
 }
 
 // ─── Core GraphQL fetch ───────────────────────────────────────────────────────
@@ -32,11 +37,13 @@ async function gql<T>(
   preview = false,
 ): Promise<T | null> {
   const body = JSON.stringify({ query, variables: vars })
+  // Use HMAC for draft/preview (needs all-content access); single key for published
+  const authHeaders = preview ? hmacHeaders(body) : singleKeyHeaders()
   const url  = preview ? `${GRAPH_URL}?preview=true` : GRAPH_URL
   try {
     const res = await fetch(url, {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json', ...hmacHeaders(body) },
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
       body,
       cache:   'no-store',
     })
