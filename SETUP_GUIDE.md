@@ -248,30 +248,26 @@ This is the code that talks to Optimizely CMS and fetches content.
 ### Step 6 — Create `lib/optimizely/client.ts`
 
 **How it works:**
-1. Gets an OAuth2 access token using your Client ID + Secret
-2. Uses that token to make authenticated API requests
-3. Returns content data as JSON
+1. Gets an OAuth2 access token using your Client ID + Secret from the global SaaS API
+2. Fetches all published pages/experiences in a single call (`/v1/content/versions`)
+3. Resolves pages by URL path or key from that cached list
+4. `getNavPages()` supplies the Header with CMS-managed navigation links
 
 ```typescript
-import type { AnyContent } from './types'
+import type { AnyContent, BaseContent, CompositionNode } from './types'
 
-const CMS_URL       = (process.env.OPTIMIZELY_CMS_URL ?? '').replace(/\/$/, '')
-const CLIENT_ID     = process.env.OPTIMIZELY_CMS_CLIENT_ID ?? ''
+const CLIENT_ID     = process.env.OPTIMIZELY_CMS_CLIENT_ID     ?? ''
 const CLIENT_SECRET = process.env.OPTIMIZELY_CMS_CLIENT_SECRET ?? ''
-const API_BASE      = `${CMS_URL}/api/episerver/v3.0`
+const TOKEN_URL     = 'https://api.cms.optimizely.com/oauth/token'
+const API_BASE      = 'https://api.cms.optimizely.com/v1'
 
-// ─── Token cache (avoids fetching a new token on every request) ───
+// ─── Token cache (~5 min TTL) ─────────────────────────────────────────────────
 
-type TokenCache = { token: string; expiresAt: number } | null
-let _tokenCache: TokenCache = null
+let _tokenCache: { token: string; expiresAt: number } | null = null
 
 async function getAccessToken(): Promise<string> {
-  // Return cached token if still valid
-  if (_tokenCache && Date.now() < _tokenCache.expiresAt) {
-    return _tokenCache.token
-  }
-  // Request a new token
-  const res = await fetch(`${CMS_URL}/api/episerver/connect/token`, {
+  if (_tokenCache && Date.now() < _tokenCache.expiresAt) return _tokenCache.token
+  const res = await fetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -281,89 +277,143 @@ async function getAccessToken(): Promise<string> {
     }),
     cache: 'no-store',
   })
-  if (!res.ok) throw new Error(`Token error ${res.status}`)
+  if (!res.ok) throw new Error(`CMS token ${res.status}: ${await res.text()}`)
   const data = await res.json() as { access_token: string; expires_in: number }
-  _tokenCache = {
-    token:     data.access_token,
-    expiresAt: Date.now() + (data.expires_in - 60) * 1000,
-  }
+  _tokenCache = { token: data.access_token, expiresAt: Date.now() + (data.expires_in - 30) * 1000 }
   return _tokenCache.token
 }
 
-// ─── Core fetch function ───
+// ─── Internal types from the versions API ─────────────────────────────────────
 
-async function cmsGet<T = AnyContent>(
-  endpoint: string,
-  queryParams: Record<string, string> = {},
-  isDraft = false,
-): Promise<T | null> {
-  const url = new URL(`${API_BASE}${endpoint}`)
-  url.searchParams.set('expand', '*')  // expand=* fetches related content inline
-  for (const [k, v] of Object.entries(queryParams)) url.searchParams.set(k, v)
+type RestProp = { value?: unknown }
+type RestComponent = { contentType: string; properties?: Record<string, RestProp> }
+type RestNode = {
+  id?: string
+  displayName?: string
+  nodeType: string
+  component?: RestComponent
+  nodes?: RestNode[]
+}
+type RestItem = {
+  key:           string
+  locale:        string
+  version:       string
+  contentType:   string
+  displayName:   string
+  status:        string
+  routeSegment?: string
+  composition?:  RestNode
+}
 
-  let authHeader: string | undefined
-  try {
-    authHeader = `Bearer ${await getAccessToken()}`
-  } catch (err) {
-    console.warn('[CMS] token failed:', err)
+// ─── Normalisation helpers ────────────────────────────────────────────────────
+
+function normalizeComponent(comp: RestComponent): BaseContent {
+  const p = comp.properties ?? {}
+  let html: string | undefined
+  for (const prop of Object.values(p)) {
+    const v = prop?.value
+    if (v && typeof v === 'object' && 'html' in v) { html = (v as { html: string }).html; break }
+    if (typeof v === 'string' && v.includes('<')) { html = v; break }
   }
+  const str = (keys: string[]) => keys.map(k => p[k]?.value).find(v => typeof v === 'string' && v) as string | undefined
+  const imgVal = (p.Image?.value ?? p.BackgroundImage?.value) as { url?: string } | null | undefined
+  return {
+    contentType: [comp.contentType], name: comp.contentType,
+    contentLink: { id: 0, workId: 0, guidValue: '' },
+    body: html,
+    headline: str(['Headline', 'Heading', 'Title']),
+    subheadline: str(['Subheading', 'Subtitle']),
+    ctaText: str(['ButtonText', 'CtaText']),
+    ctaUrl: str(['ButtonUrl', 'CtaUrl']),
+    image: imgVal ? { id: '', url: imgVal.url ?? '' } : undefined,
+  } as unknown as BaseContent
+}
 
-  try {
-    const res = await fetch(url.toString(), {
-      headers: {
-        Accept: 'application/json',
-        ...(authHeader ? { Authorization: authHeader } : {}),
-      },
-      cache: 'no-store',  // always fetch fresh (we handle caching via Next.js revalidation)
-    })
-    if (res.status === 404) return null
-    if (!res.ok) {
-      console.error(`[CMS] ${res.status} — ${url}`)
-      return null
-    }
-    return res.json() as Promise<T>
-  } catch (err) {
-    console.error('[CMS] error:', err)
-    return null
+function normalizeNode(node: RestNode): CompositionNode {
+  if (node.nodeType === 'component' && node.component) {
+    return { nodeType: 'component', key: node.id, component: normalizeComponent(node.component) }
+  }
+  return {
+    nodeType: node.nodeType as CompositionNode['nodeType'],
+    key: node.id,
+    component: node.component ? normalizeComponent(node.component) : undefined,
+    nodes: (node.nodes ?? []).map(normalizeNode),
   }
 }
 
-// ─── Public functions used by pages ───
+function normalizeItem(item: RestItem): AnyContent {
+  return {
+    contentType: [item.contentType], name: item.displayName,
+    contentLink: { id: 0, workId: 0, guidValue: item.key },
+    status: item.status, routeSegment: item.routeSegment,
+    composition: item.composition ? normalizeNode(item.composition) : undefined,
+  } as unknown as AnyContent
+}
 
-/**
- * Find a page by its public URL.
- * Tries multiple URL formats because CMS may store URLs with /en/ prefix.
- */
-export async function getPageByUrl(fullUrl: string, isDraft = false): Promise<AnyContent | null> {
-  const base = fullUrl.replace(/\/$/, '')
-  const candidates = [`${base}/`, base, `${base}/en/`, `${base}/en`]
+// ─── Data fetching ────────────────────────────────────────────────────────────
 
-  for (const url of candidates) {
-    const result = await cmsGet<AnyContent | AnyContent[]>(
-      '/content',
-      { contentUrl: url },
-      isDraft,
+export async function fetchAllPublished(): Promise<RestItem[]> {
+  try {
+    const token = await getAccessToken()
+    const res = await fetch(
+      `${API_BASE}/content/versions?statuses=Published&pageSize=200&locales=en`,
+      { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }, cache: 'no-store' },
     )
-    if (result) {
-      return Array.isArray(result) ? (result[0] ?? null) : result
-    }
+    if (!res.ok) { console.error(`[CMS] list ${res.status}`); return [] }
+    const data = await res.json() as { items?: RestItem[] }
+    return data.items ?? []
+  } catch (err) {
+    console.error('[CMS] fetchAllPublished error:', err)
+    return []
   }
-  return null
 }
 
-/**
- * Fetch a content item directly by its numeric ID.
- * Useful as a fallback when URL-based lookup fails.
- */
-export async function getContentById(id: string | number, isDraft = false): Promise<AnyContent | null> {
-  return cmsGet<AnyContent>(`/content/${id}`, {}, isDraft)
+// ─── Public functions used by pages ──────────────────────────────────────────
+
+/** Find a page by its public URL path segment */
+export async function getPageByUrl(fullUrl: string, _isDraft = false): Promise<AnyContent | null> {
+  const items = await fetchAllPublished()
+  if (!items.length) return null
+
+  let pathname = '/'
+  try { pathname = new URL(fullUrl).pathname } catch { /* ignore */ }
+  const segments = pathname.split('/').filter(s => s && s !== 'en')
+  const slug = segments[segments.length - 1] ?? ''
+
+  if (!slug) {
+    // Homepage: match by routeSegment '' / 'home', or fall back to first experience
+    const startKey = (process.env.OPTIMIZELY_START_PAGE_ID ?? '').replace(/-/g, '')
+    const home = items.find(i =>
+      i.key.replace(/-/g, '') === startKey ||
+      i.routeSegment === 'home' || i.routeSegment === ''
+    ) ?? items.find(i => i.contentType === 'BlankExperience' || i.contentType === 'SeoExperience')
+    return home ? normalizeItem(home) : null
+  }
+
+  const match = items.find(i => i.routeSegment === slug || i.key.replace(/-/g, '') === slug)
+  return match ? normalizeItem(match) : null
 }
 
-/**
- * Fetch child pages of a content item (used for blog listing etc.)
- */
-export async function getContentChildren(id: string | number, isDraft = false): Promise<AnyContent[]> {
-  return (await cmsGet<AnyContent[]>(`/content/${id}/children`, {}, isDraft)) ?? []
+/** Fetch a page by its GUID key — used as a fallback for start page */
+export async function getContentById(id: string | number, _isDraft = false): Promise<AnyContent | null> {
+  const items = await fetchAllPublished()
+  const needle = String(id).replace(/-/g, '')
+  const match = items.find(i => i.key.replace(/-/g, '') === needle)
+  if (match) return normalizeItem(match)
+  const fallback = items.find(i => i.contentType === 'BlankExperience' || i.contentType === 'SeoExperience')
+  return fallback ? normalizeItem(fallback) : null
+}
+
+/** Returns nav items for the Header — one entry per published top-level page */
+export async function getNavPages(): Promise<{ href: string; label: string }[]> {
+  const items = await fetchAllPublished()
+  if (!items.length) return [{ href: '/', label: 'Home' }]
+  const pages = items.filter(i =>
+    i.routeSegment !== undefined &&
+    (i.contentType === 'BlankExperience' || i.contentType === 'SeoExperience' ||
+     i.contentType.endsWith('Page') || i.contentType.endsWith('Experience'))
+  )
+  return pages.map(i => ({ href: i.routeSegment ? `/${i.routeSegment}` : '/', label: i.displayName }))
 }
 ```
 
@@ -670,24 +720,30 @@ export default function CmsPage({ content }: Props) {
 
 ### Step 14 — Create `components/layout/Header.tsx`
 
+The Header is a **server component** that fetches navigation links directly from CMS at render time. Any page you publish in CMS automatically appears in the nav — no code change needed.
+
 ```tsx
 import Link from 'next/link'
+import { getNavPages } from '@/lib/optimizely/client'
 
-const NAV = [
-  { href: '/',         label: 'Home'     },
-  { href: '/about',    label: 'About'    },
-  { href: '/services', label: 'Services' },
-  { href: '/blog',     label: 'Blog'     },
-]
+export default async function Header() {
+  // Fetch published CMS pages for nav — falls back to empty array on error
+  const cmsPages = await getNavPages().catch(() => [])
 
-export default function Header() {
+  const homeEntry  = { href: '/', label: 'Home' }
+  const extraPages = cmsPages.filter(p => p.href !== '/')
+  const nav        = [homeEntry, ...extraPages]
+
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-      <div className="max-w-6xl mx-auto px-8 h-16 flex items-center justify-between">
-        <Link href="/" className="text-xl font-bold text-blue-600">DemoSite</Link>
-        <nav className="flex items-center gap-6">
-          {NAV.map(({ href, label }) => (
-            <Link key={href} href={href} className="text-gray-600 hover:text-blue-600 font-medium text-sm transition-colors">
+    <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
+      <div className="max-w-5xl mx-auto flex items-center justify-between h-14 px-6">
+        <Link href="/" className="font-bold text-slate-900 text-lg hover:text-blue-600 transition">
+          My CMS Site
+        </Link>
+        <nav className="flex items-center gap-1">
+          {nav.map(({ href, label }) => (
+            <Link key={href} href={href}
+              className="px-3 py-1.5 rounded-md text-slate-600 hover:text-blue-600 hover:bg-blue-50 text-sm font-medium transition">
               {label}
             </Link>
           ))}
@@ -698,15 +754,15 @@ export default function Header() {
 }
 ```
 
+> **Key point:** `getNavPages()` reads from the same `fetchAllPublished()` list used by pages. When you create and publish a new page in CMS, it shows up in the header on the next request automatically.
+
 ### Step 15 — Create `components/layout/Footer.tsx`
 
 ```tsx
 export default function Footer() {
   return (
-    <footer className="bg-gray-900 text-gray-400 py-10 px-8 mt-auto">
-      <div className="max-w-6xl mx-auto text-center text-sm">
-        <p>© {new Date().getFullYear()} DemoSite — powered by Optimizely CMS + Next.js</p>
-      </div>
+    <footer className="border-t border-slate-200 bg-white py-6 px-6 text-center text-sm text-slate-500">
+      &copy; {new Date().getFullYear()} My CMS Site &mdash; Built with Optimizely CMS + Next.js
     </footer>
   )
 }
@@ -1013,12 +1069,14 @@ import path from 'path'
 const CMS_HOSTNAME = 'YOUR-INSTANCE.cms.optimizely.com'  // ← change this
 
 const nextConfig: NextConfig = {
+  // Prevents Next.js from using a parent folder as workspace root
   turbopack: {
-    root: path.resolve(__dirname),  // prevents workspace root detection issues
+    root: path.resolve(__dirname),
   },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: CMS_HOSTNAME },
+      { protocol: 'https', hostname: '*.cms.optimizely.com' }, // covers all CMS subdomains
     ],
   },
   async headers() {
@@ -1026,8 +1084,8 @@ const nextConfig: NextConfig = {
       source: '/(.*)',
       headers: [{
         key:   'Content-Security-Policy',
-        // This allows Optimizely CMS to embed your site in an iframe
-        value: `frame-ancestors 'self' https://${CMS_HOSTNAME}`,
+        // This allows Optimizely CMS to embed your site in an iframe (required for Visual Builder)
+        value: `frame-ancestors 'self' https://${CMS_HOSTNAME} https://*.cms.optimizely.com`,
       }],
     }]
   },
