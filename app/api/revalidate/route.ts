@@ -11,7 +11,6 @@
  */
 import { revalidatePath } from 'next/cache'
 import type { NextRequest } from 'next/server'
-import { clearConfigCache } from '@/lib/optimizely/config'
 
 const REVALIDATE_SECRET = process.env.OPTIMIZELY_REVALIDATE_SECRET
 
@@ -25,7 +24,6 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({})) as { path?: string }
-    clearConfigCache()
     if (body.path && typeof body.path === 'string') {
       revalidatePath(body.path)
     } else {
@@ -43,7 +41,6 @@ export async function GET(request: NextRequest) {
   if (token !== REVALIDATE_SECRET) return unauthorized()
 
   const path = searchParams.get('path')
-  clearConfigCache()
   if (path) {
     revalidatePath(path)
   } else {
