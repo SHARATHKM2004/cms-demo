@@ -1,34 +1,16 @@
 import type { ComponentType } from 'react'
 import type { BaseContent }   from '@/lib/optimizely/types'
 
-import Hero           from './Hero'
-import RichText       from './RichText'
-import CtaBlock       from './CtaBlock'
-import CardGrid       from './CardGrid'
-import ImageBlock     from './ImageBlock'
-import HeroSection     from '@/components/portfolio/HeroSection'
-import AboutSection    from '@/components/portfolio/AboutSection'
-import SkillsSection   from '@/components/portfolio/SkillsSection'
-import ProjectsSection from '@/components/portfolio/ProjectsSection'
-import ContactSection  from '@/components/portfolio/ContactSection'
+import Hero       from './Hero'
+import RichText   from './RichText'
+import CtaBlock   from './CtaBlock'
+import CardGrid   from './CardGrid'
+import ImageBlock from './ImageBlock'
 
 interface Props { content: BaseContent }
 type BlockComponent = ComponentType<Props>
 
 const COMPONENT_MAP: Record<string, BlockComponent> = {
-  // ── Portfolio sections (created in CMS Visual Builder) ────────────────────
-  'HeroSection':        HeroSection,
-  'HeroBlock':          HeroSection,
-  'Hero Block':         HeroSection,
-  'AboutSection':       AboutSection,
-  'AboutBlock':         AboutSection,
-  'SkillsSection':      SkillsSection,
-  'SkillsBlock':        SkillsSection,
-  'ProjectsSection':    ProjectsSection,
-  'ProjectsBlock':      ProjectsSection,
-  'ContactSection':     ContactSection,
-  'ContactBlock':       ContactSection,
-
   // ── Rich text / paragraph ─────────────────────────────────────────────────
   'RichTextBlock':      RichText,
   'RichTextElement':    RichText,

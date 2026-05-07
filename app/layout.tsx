@@ -8,8 +8,8 @@ import VisualBuilderBridge from '@/components/VisualBuilderBridge'
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
 
 export const metadata: Metadata = {
-  title:       'Sharath Kori — Full Stack Developer',
-  description: 'Portfolio of Sharath Kori, Full Stack Developer specializing in React, Next.js, and CMS integrations.',
+  title:       'My CMS Site',
+  description: 'A sample website powered by Optimizely CMS and Next.js.',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
